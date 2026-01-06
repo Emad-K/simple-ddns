@@ -1,46 +1,53 @@
 # Simple Hono DDNS
 
-A secure, lightweight Dynamic DNS API built with [Hono](https://hono.dev/) and designed to run on Bun, Node.js, or Cloudflare Workers. It updates a Cloudflare DNS record with your current IP address.
+A secure, lightweight Dynamic DNS API built with [Hono](https://hono.dev/) and designed to run on Bun. It automatically updates or creates Cloudflare DNS records (A/AAAA) based on the requester's IP.
 
 ## Features
 
 - **Secure**: Protected by Bearer Token authentication.
-- **Smart**: Automatically detects the requester's IP if not provided.
+- **Smart**: Automatically detects IPv4 or IPv6 and handles record types correctly.
+- **Auto-Provisioning**: Automatically creates the DNS record if it doesn't already exist in Cloudflare.
 - **Efficient**: Only updates Cloudflare if the IP has actually changed.
-- **Lightweight**: Zero external dependencies (uses native `fetch`).
+- **Containerized**: Ready-to-use Docker image and Compose setup.
 
 ## Setup
 
-1. **Clone and Install**:
-   ```bash
-   bun install
-   ```
+### Environment Variables
 
-2. **Configure Environment**:
-   Create a `.env` file based on `.env.example`:
-   ```env
-   CLOUDFLARE_API_TOKEN=your_token_here
-   CLOUDFLARE_ZONE_ID=your_zone_id_here
-   AUTH_TOKEN=your_secret_auth_token_here
-   ```
+Create a `/home/masoud/projects/simple-ddns/.env` file with the following:
 
-3. **Cloudflare Permissions**:
-   Your Cloudflare API Token needs `Zone.DNS` permissions for the specific zone.
+| Variable | Description | Required |
+| :--- | :--- | :--- |
+| `CLOUDFLARE_API_TOKEN` | Scoped API Token with `Zone.DNS` edit permissions | Yes |
+| `CLOUDFLARE_ZONE_ID` | The Zone ID of your domain | Yes |
+| `AUTH_TOKEN` | A secure secret for client authentication | Yes |
+| `PORT` | Server port (defaults to `3000`) | No |
+| `NODE_ENV` | environment (defaults to `development`) | No |
+
+
+### Docker (Recommended)
+```bash
+docker compose pull
+docker compose up -d
+```
+
+### Local Development
+1. **Install**: `bun install`
+2. **Run**: `bun run dev`
 
 ## Usage
-
-### Run Locally
-```bash
-bun run dev
-```
 
 ### Update via Client
 You must provide the subdomain you want to update in the URL path. IP detection is fully automatic:
 
 ```bash
-curl -X GET "http://localhost:3000/update/my-device.example.com" \
-     -H "Authorization: Bearer your_secret_auth_token_here"
+curl -X GET "http://your-server:3000/update/my-home.example.com" \
+     -H "Authorization: Bearer your_secure_auth_token"
 ```
+
+The server will return:
+- `201 Created` if the record was newly created.
+- `200 OK` if the record was updated or already up-to-date.
 
 ## Automating Updates
 Add a cron job on your client machine to run the update script periodically:

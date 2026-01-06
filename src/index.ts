@@ -9,7 +9,7 @@ const app = new Hono();
 
 // Cloudflare API client
 const cf = axios.create({
-  baseURL: `https://api.cloudflare.com/client/v4/zones/${env.CLOUDFLARE_ZONE_ID}`,
+  baseURL: `https://api.cloudflare.com/client/v4/zones/${env.CLOUDFLARE_ZONE_ID}/`,
   headers: {
     Authorization: `Bearer ${env.CLOUDFLARE_API_TOKEN}`,
     "Content-Type": "application/json",
@@ -20,7 +20,7 @@ app.get("/", (c) => {
   return c.json({
     status: "ok",
     message: "Simple DDNS API is running",
-    usage: "GET /update (IP detection is automatic)",
+    usage: "GET /update/:subdomain (IP detection is automatic)",
   });
 });
 
@@ -42,13 +42,18 @@ app.get(
     const recordType = isIPv6 ? "AAAA" : "A";
 
     // 1. Search for the existing DNS record
-    const [listRes, listErr] = await to(cf.get(`/dns_records`, {
+    const [listRes, listErr] = await to(cf.get(`dns_records`, {
       params: { name: subdomain, type: recordType },
     }));
 
     if (listErr) {
       const status = listErr.response?.status || StatusCodes.INTERNAL_SERVER_ERROR;
-      return c.json({ error: getReasonPhrase(status), message: listErr.message }, status);
+      const details = listErr.response?.data?.errors;
+      return c.json({
+        error: getReasonPhrase(status),
+        message: listErr.message,
+        details: details || "No additional details from provider",
+      }, status);
     }
 
     const listData = listRes!.data;
@@ -57,6 +62,7 @@ app.get(
     // 2. If record exists, update it if needed
     if (existingRecord) {
       if (existingRecord.content === ip) {
+        console.log(`[INFO] ${subdomain} is already up to date (${ip})`);
         return c.json({
           status: "no_change",
           message: `IP is already set to ${ip}`,
@@ -64,7 +70,7 @@ app.get(
         }, StatusCodes.OK);
       }
 
-      const [updateRes, updateErr] = await to(cf.patch(`/dns_records/${existingRecord.id}`, {
+      const [updateRes, updateErr] = await to(cf.patch(`dns_records/${existingRecord.id}`, {
         content: ip,
         type: recordType,
         name: subdomain,
@@ -72,9 +78,15 @@ app.get(
 
       if (updateErr) {
         const status = updateErr.response?.status || StatusCodes.INTERNAL_SERVER_ERROR;
-        return c.json({ error: getReasonPhrase(status), message: updateErr.message }, status);
+        const details = updateErr.response?.data?.errors;
+        return c.json({
+          error: getReasonPhrase(status),
+          message: updateErr.message,
+          details: details || "No additional details from provider",
+        }, status);
       }
 
+      console.log(`[SUCCESS] Updated ${subdomain} to ${ip}`);
       return c.json({
         status: "success",
         action: "updated",
@@ -84,7 +96,7 @@ app.get(
     }
 
     // 3. If record does NOT exist, create it
-    const [createRes, createErr] = await to(cf.post(`/dns_records`, {
+    const [createRes, createErr] = await to(cf.post(`dns_records`, {
       type: recordType,
       name: subdomain,
       content: ip,
@@ -101,6 +113,7 @@ app.get(
       }, status);
     }
 
+    console.log(`[SUCCESS] Created new record for ${subdomain} with IP ${ip}`);
     return c.json({
       status: "success",
       action: "created",
