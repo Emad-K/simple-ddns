@@ -4,6 +4,7 @@ import axios from "axios";
 import { StatusCodes, getReasonPhrase } from "http-status-codes";
 import env from "./env";
 import { to, getIp } from "./lib/utils";
+import logger from "./lib/logger";
 
 const app = new Hono();
 
@@ -49,6 +50,7 @@ app.get(
     if (listErr) {
       const status = listErr.response?.status || StatusCodes.INTERNAL_SERVER_ERROR;
       const details = listErr.response?.data?.errors;
+      logger.error({ subdomain, error: listErr.message, details }, "Failed to list DNS records");
       return c.json({
         error: getReasonPhrase(status),
         message: listErr.message,
@@ -62,7 +64,7 @@ app.get(
     // 2. If record exists, update it if needed
     if (existingRecord) {
       if (existingRecord.content === ip) {
-        console.log(`[INFO] ${subdomain} is already up to date (${ip})`);
+        logger.info({ subdomain, ip }, "Subdomain already up to date");
         return c.json({
           status: "no_change",
           message: `IP is already set to ${ip}`,
@@ -79,6 +81,7 @@ app.get(
       if (updateErr) {
         const status = updateErr.response?.status || StatusCodes.INTERNAL_SERVER_ERROR;
         const details = updateErr.response?.data?.errors;
+        logger.error({ subdomain, error: updateErr.message, details }, "Failed to update DNS record");
         return c.json({
           error: getReasonPhrase(status),
           message: updateErr.message,
@@ -86,7 +89,7 @@ app.get(
         }, status);
       }
 
-      console.log(`[SUCCESS] Updated ${subdomain} to ${ip}`);
+      logger.info({ subdomain, ip, recordType }, "Updated DNS record");
       return c.json({
         status: "success",
         action: "updated",
@@ -106,14 +109,16 @@ app.get(
 
     if (createErr) {
       const status = createErr.response?.status || StatusCodes.INTERNAL_SERVER_ERROR;
+      const details = createErr.response?.data?.errors;
+      logger.error({ subdomain, error: createErr.message, details }, "Failed to create DNS record");
       return c.json({
         error: getReasonPhrase(status),
         message: "Failed to create new DNS record",
-        details: createErr.response?.data?.errors || createErr.message,
+        details: details || createErr.message,
       }, status);
     }
 
-    console.log(`[SUCCESS] Created new record for ${subdomain} with IP ${ip}`);
+    logger.info({ subdomain, ip, recordType }, "Created new DNS record");
     return c.json({
       status: "success",
       action: "created",

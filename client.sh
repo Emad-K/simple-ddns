@@ -6,7 +6,7 @@ BASE_URL="http://localhost:3000"
 # Your secure auth token
 AUTH_TOKEN="your_secure_auth_token"
 # The subdomain you want to update (e.g., home.example.com)
-SUBDOMAIN="test.true.tips"
+SUBDOMAIN="test.example.com"
 
 # Call the API
 # IP detection is automatic on the server side
