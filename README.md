@@ -49,9 +49,43 @@ The server will return:
 - `201 Created` if the record was newly created.
 - `200 OK` if the record was updated or already up-to-date.
 
-## Automating Updates
-Add a cron job on your client machine to run the update script periodically:
+## Automating Updates on Ubuntu
+
+To keep your DNS always up to date, you should automate the update request on your client machine (e.g., your home server).
+
+### 1. Create the update script
+Save the following as `/usr/local/bin/update-dns.sh` (you will need sudo):
+
 ```bash
-# Every 15 minutes
-*/15 * * * * /path/to/client.sh
+#!/bin/bash
+# Configuration
+BASE_URL="https://your-hono-api.com/update"
+AUTH_TOKEN="your_secure_auth_token"
+SUBDOMAIN="home.example.com"
+
+# Sync IP with server
+curl -s -X GET "$BASE_URL/$SUBDOMAIN" \
+     -H "Authorization: Bearer $AUTH_TOKEN"
+```
+
+### 2. Make it executable
+```bash
+sudo chmod +x /usr/local/bin/update-dns.sh
+```
+
+### 3. Test the script
+Run it once manually to ensure it works:
+```bash
+/usr/local/bin/update-dns.sh
+```
+
+### 4. Setup Cron Job
+Open your crontab editor:
+```bash
+crontab -e
+```
+
+Add this line to the bottom to run the script every 15 minutes:
+```bash
+*/15 * * * * /usr/local/bin/update-dns.sh > /dev/null 2>&1
 ```
